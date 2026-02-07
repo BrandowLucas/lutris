@@ -567,7 +567,10 @@ class AmazonService(OnlineService):
                 if directory.path is not None:
                     directories.append(directory.path.decode().replace("\\", "/"))
 
-        file_dict = dict(zip(hashes, files))
+        file_dict = defaultdict(list)
+
+        for h, f in zip(hashes, files):
+            file_dict[h].append(f)
 
         return file_dict, directories, hashpairs
 
@@ -579,12 +582,13 @@ class AmazonService(OnlineService):
 
         file_dict, directories, hashpairs = self.structure_manifest_data(manifest)
 
-        for file_hash, file in file_dict.items():
+        for file_hash, files in file_dict.items():
             url = manifest_info["downloadUrl"]
             url = urllib.parse.urlparse(url)
             url = url._replace(path=url.path + "/files/" + file_hash)
             url = urllib.parse.urlunparse(url)
-            file["url"] = url
+            for file in files:
+                file["url"] = url
 
         return file_dict, directories
 
@@ -648,7 +652,8 @@ class AmazonService(OnlineService):
             raise UnavailableGameError(_("Couldn't load the downloads for this game")) from err
 
         files = []
-        for file_hash, file in file_dict.items():
+        for file_hash, files in file_dict.items():
+            file = files[0]
             file_name = os.path.basename(file["path"])
             files.append(
                 InstallerFile(
@@ -680,7 +685,7 @@ class AmazonService(OnlineService):
         ]
 
         # try to get fuel file that contain the main exe
-        fuel_file = [k for k, v in file_dict.items() if "fuel.json" in v["path"]]
+        fuel_file = [k for k, v in file_dict.items() if any(lambda i: "fuel.json" in i["path"], v)]
         fuel_url = None
         if fuel_file:
             fuel_url = manifest_info["downloadUrl"]
